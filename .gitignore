@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets (never commit API keys)
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vercel
+.vercel
