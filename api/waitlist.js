@@ -69,8 +69,29 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Optional: persist to Vercel KV, Postgres, or send email (Resend/SendGrid)
-  // await saveWaitlistEntry({ email, country, state });
+  const entry = { email, country, state: state || "", ts: new Date().toISOString() };
+
+  // Persist if Redis/KV is configured (add KV store in Vercel project → Storage)
+  const kvUrl = process.env.KV_REST_API_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN;
+  if (kvUrl && kvToken) {
+    try {
+      const payload = ["RPUSH", "waitlist", JSON.stringify(entry)];
+      const kvRes = await fetch(kvUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${kvToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!kvRes.ok) {
+        console.error("KV store failed", await kvRes.text());
+      }
+    } catch (err) {
+      console.error("KV store error", err);
+    }
+  }
 
   res.status(200).json({
     ok: true,
