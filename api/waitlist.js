@@ -3,6 +3,22 @@
  * POST /api/waitlist — accepts email, country, state (form-urlencoded or JSON)
  */
 const { parse } = require("querystring");
+const { createClient } = require("redis");
+
+// Lazily-initialized Redis client using REDIS_URL
+let redisClient;
+async function getRedisClient() {
+  const url = process.env.REDIS_URL;
+  if (!url) return null;
+  if (redisClient && redisClient.isOpen) return redisClient;
+
+  redisClient = createClient({ url });
+  redisClient.on("error", (err) => {
+    console.error("Redis client error", err);
+  });
+  await redisClient.connect();
+  return redisClient;
+}
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -71,26 +87,16 @@ module.exports = async function handler(req, res) {
 
   const entry = { email, country, state: state || "", ts: new Date().toISOString() };
 
-  // Persist if Redis/KV is configured (add KV store in Vercel project → Storage)
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
-  if (kvUrl && kvToken) {
-    try {
-      const payload = ["RPUSH", "waitlist", JSON.stringify(entry)];
-      const kvRes = await fetch(kvUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${kvToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!kvRes.ok) {
-        console.error("KV store failed", await kvRes.text());
-      }
-    } catch (err) {
-      console.error("KV store error", err);
+  // Persist to Redis if REDIS_URL is configured in the Vercel project
+  try {
+    const client = await getRedisClient();
+    if (client) {
+      await client.rPush("waitlist", JSON.stringify(entry));
+    } else {
+      console.warn("REDIS_URL not set; skipping Redis persistence");
     }
+  } catch (err) {
+    console.error("Redis write error", err);
   }
 
   res.status(200).json({
