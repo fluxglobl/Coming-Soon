@@ -88,12 +88,10 @@ module.exports = async function handler(req, res) {
   const entry = { email, country, state: state || "", ts: new Date().toISOString() };
 
   // Persist to Redis if REDIS_URL is configured in the Vercel project
-  let stored = false;
   try {
     const client = await getRedisClient();
     if (client) {
       await client.rPush("waitlist", JSON.stringify(entry));
-      stored = true;
     } else {
       console.warn("REDIS_URL not set; skipping Redis persistence");
     }
@@ -103,7 +101,6 @@ module.exports = async function handler(req, res) {
 
   res.status(200).json({
     ok: true,
-    stored,
     message: "You're on the list. We'll be in touch.",
   });
 };
